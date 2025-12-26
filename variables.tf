@@ -40,7 +40,31 @@ variable "vm_disk_size" {
 variable "wg_easy_password" {
   description = "Password for wg-easy web UI"
   type        = string
-  default     = "changeme123"
+  default     = "kRa9z3YqTvLpDu5F2nfzrrbeZ"
   sensitive   = true
+}
+
+variable "domain_name" {
+  description = "Domain name for WireGuard web UI (e.g., vpn.example.com). Leave empty to use IP only."
+  type        = string
+  default     = ""
+}
+
+variable "dns_zone_id" {
+  description = "Yandex Cloud DNS zone ID (optional, required if domain_name is set)"
+  type        = string
+  default     = ""
+}
+
+variable "email_for_letsencrypt" {
+  description = "Email address for Let's Encrypt certificate registration"
+  type        = string
+  default     = ""
+}
+
+variable "enable_wg_ui" {
+  description = "Enable or disable WireGuard Web UI (TCP 51821). Set to false after creating VPN clients for better security."
+  type        = bool
+  default     = true
 }
 

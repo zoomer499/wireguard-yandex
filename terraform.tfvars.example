@@ -2,6 +2,14 @@ cloud_id  = "your-cloud-id-here"
 folder_id = "your-folder-id-here"
 my_ip     = "1.2.3.4/32"
 
+# Optional: DNS and SSL configuration
+# domain_name         = "vpn.example.com"
+# dns_zone_id         = "dns4abc123def456"  # Yandex Cloud DNS zone ID
+# email_for_letsencrypt = "admin@example.com"
+
+# Optional: Security settings
+# enable_wg_ui = true  # Set to false to close Web UI port 51821 after creating clients (recommended)
+
 # Optional: Override defaults if needed
 # vm_name         = "wireguard-vpn"
 # vm_cores        = 2

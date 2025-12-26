@@ -23,12 +23,31 @@ resource "yandex_vpc_security_group" "wireguard_sg" {
     v4_cidr_blocks = [var.my_ip]
   }
 
-  # Allow wg-easy Web UI from my IP
+  # Allow wg-easy Web UI from my IP (direct access) - only when enabled
+  dynamic "ingress" {
+    for_each = var.enable_wg_ui ? [1] : []
+    content {
+      description    = "WireGuard Web UI (Direct)"
+      protocol       = "TCP"
+      port           = 51821
+      v4_cidr_blocks = [var.my_ip]
+    }
+  }
+
+  # Allow HTTP for Let's Encrypt certificate validation
   ingress {
-    description    = "WireGuard Web UI"
+    description    = "HTTP (Let's Encrypt)"
     protocol       = "TCP"
-    port           = 51821
-    v4_cidr_blocks = [var.my_ip]
+    port           = 80
+    v4_cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # Allow HTTPS for secure web UI access
+  ingress {
+    description    = "HTTPS (Secure Web UI)"
+    protocol       = "TCP"
+    port           = 443
+    v4_cidr_blocks = var.domain_name != "" ? ["0.0.0.0/0"] : [var.my_ip]
   }
 
   # Allow all egress
@@ -64,7 +83,9 @@ resource "yandex_compute_instance" "wireguard_vm" {
 
   metadata = {
     user-data = templatefile("${path.module}/cloud-init.yaml", {
-      wg_easy_password = var.wg_easy_password
+      wg_easy_password    = var.wg_easy_password
+      domain_name         = var.domain_name
+      email_for_letsencrypt = var.email_for_letsencrypt
     })
   }
 

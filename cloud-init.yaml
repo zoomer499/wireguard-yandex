@@ -6,13 +6,19 @@ write_files:
       # Get public IP from Yandex Cloud metadata service
       PUBLIC_IP=$(curl -s http://169.254.169.254/latest/metadata/v4/instance/network-interfaces/0/external-ip || curl -s ifconfig.me)
       
-      # Create docker-compose.yml with dynamic IP
+      # Use domain name if provided, otherwise use IP
+      WG_HOST="${domain_name}"
+      if [ -z "$WG_HOST" ]; then
+        WG_HOST="$PUBLIC_IP"
+      fi
+      
+      # Create docker-compose.yml with dynamic IP or domain
       cat > /opt/wireguard/docker-compose.yml <<EOF
       version: '3.8'
       services:
         wg-easy:
           environment:
-            - WG_HOST=$PUBLIC_IP
+            - WG_HOST=$WG_HOST
             - PASSWORD=${wg_easy_password}
             - WG_ALLOWED_IPS=0.0.0.0/0
             - WG_DEFAULT_ADDRESS=10.8.0.x
@@ -32,14 +38,132 @@ write_files:
             - /opt/wireguard/wg-data:/etc/wireguard
           ports:
             - "51820:51820/udp"
-            - "51821:51821/tcp"
+            - "127.0.0.1:51821:51821/tcp"
           restart: unless-stopped
       EOF
       
       # Start Docker Compose
       cd /opt/wireguard && docker compose up -d
       
-      echo "WireGuard VPN server started with IP: $PUBLIC_IP"
+      echo "WireGuard VPN server started with host: $WG_HOST"
+    owner: root:root
+    permissions: '0755'
+  
+  - path: /etc/nginx/sites-available/wireguard
+    content: |
+      server {
+          listen 80;
+          server_name ${domain_name};
+          
+          # Let's Encrypt challenge
+          location /.well-known/acme-challenge/ {
+              root /var/www/html;
+          }
+          
+          # Redirect to HTTPS if domain is set
+          %{ if domain_name != "" }
+          location / {
+              return 301 https://$host$request_uri;
+          }
+          %{ else }
+          # Proxy to wg-easy if no domain (direct IP access)
+          location / {
+              proxy_pass http://127.0.0.1:51821;
+              proxy_http_version 1.1;
+              proxy_set_header Upgrade $http_upgrade;
+              proxy_set_header Connection 'upgrade';
+              proxy_set_header Host $host;
+              proxy_set_header X-Real-IP $remote_addr;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto $scheme;
+              proxy_cache_bypass $http_upgrade;
+          }
+          %{ endif }
+      }
+      
+      %{ if domain_name != "" }
+      server {
+          listen 443 ssl http2;
+          server_name ${domain_name};
+          
+          ssl_certificate /etc/letsencrypt/live/${domain_name}/fullchain.pem;
+          ssl_certificate_key /etc/letsencrypt/live/${domain_name}/privkey.pem;
+          
+          # SSL configuration
+          ssl_protocols TLSv1.2 TLSv1.3;
+          ssl_ciphers HIGH:!aNULL:!MD5;
+          ssl_prefer_server_ciphers on;
+          
+          # Proxy to wg-easy
+          location / {
+              proxy_pass http://127.0.0.1:51821;
+              proxy_http_version 1.1;
+              proxy_set_header Upgrade $http_upgrade;
+              proxy_set_header Connection 'upgrade';
+              proxy_set_header Host $host;
+              proxy_set_header X-Real-IP $remote_addr;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto $scheme;
+              proxy_cache_bypass $http_upgrade;
+          }
+      }
+      %{ endif }
+    owner: root:root
+    permissions: '0644'
+  
+  - path: /opt/wireguard/setup-ssl.sh
+    content: |
+      #!/bin/bash
+      set -e
+      
+      DOMAIN="${domain_name}"
+      EMAIL="${email_for_letsencrypt}"
+      
+      if [ -z "$DOMAIN" ]; then
+        echo "No domain name provided, skipping SSL setup"
+        exit 0
+      fi
+      
+      if [ -z "$EMAIL" ]; then
+        EMAIL="admin@$DOMAIN"
+      fi
+      
+      echo "Setting up SSL certificate for $DOMAIN"
+      
+      # Wait for DNS propagation (up to 5 minutes)
+      echo "Waiting for DNS propagation..."
+      for i in {1..60}; do
+        if dig +short $DOMAIN | grep -q .; then
+          echo "DNS record found!"
+          break
+        fi
+        echo "Attempt $i/60: DNS not ready, waiting 5 seconds..."
+        sleep 5
+      done
+      
+      # Create webroot directory
+      mkdir -p /var/www/html
+      
+      # Get certificate
+      certbot certonly --webroot \
+        --webroot-path=/var/www/html \
+        --email $EMAIL \
+        --agree-tos \
+        --no-eff-email \
+        --non-interactive \
+        -d $DOMAIN || {
+        echo "Failed to obtain certificate. Will retry later."
+        exit 0
+      }
+      
+      # Enable nginx site
+      ln -sf /etc/nginx/sites-available/wireguard /etc/nginx/sites-enabled/
+      rm -f /etc/nginx/sites-enabled/default
+      
+      # Test and reload nginx
+      nginx -t && systemctl reload nginx
+      
+      echo "SSL certificate setup complete!"
     owner: root:root
     permissions: '0755'
 
@@ -54,21 +178,43 @@ runcmd:
   - apt-get update
   - apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
+  # Install nginx and certbot
+  - apt-get install -y nginx certbot python3-certbot-nginx dnsutils
+
   # Enable IPv4 forwarding
   - sysctl -w net.ipv4.ip_forward=1
   - echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
 
   # Create wireguard directory
   - mkdir -p /opt/wireguard/wg-data
+  - mkdir -p /var/www/html
 
   # Wait for network interface to get public IP
   - sleep 15
 
-  # Run setup script to get IP and start WireGuard
+  # Run setup script to get IP/domain and start WireGuard
   - /opt/wireguard/setup-wg.sh
+
+  # Setup nginx (basic config first)
+  - |
+    if [ -n "${domain_name}" ]; then
+      # Enable site for SSL setup
+      ln -sf /etc/nginx/sites-available/wireguard /etc/nginx/sites-enabled/
+      rm -f /etc/nginx/sites-enabled/default
+      systemctl restart nginx
+      
+      # Setup SSL in background (can take time for DNS propagation)
+      nohup /opt/wireguard/setup-ssl.sh > /var/log/ssl-setup.log 2>&1 &
+    else
+      # No domain, just proxy HTTP
+      ln -sf /etc/nginx/sites-available/wireguard /etc/nginx/sites-enabled/
+      rm -f /etc/nginx/sites-enabled/default
+      systemctl restart nginx
+    fi
 
   # Show status
   - sleep 5
   - docker ps
+  - systemctl status nginx --no-pager || true
   - echo "WireGuard VPN server setup complete!"
 
