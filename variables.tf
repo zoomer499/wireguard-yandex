@@ -37,3 +37,10 @@ variable "vm_disk_size" {
   default     = 20
 }
 
+variable "wg_easy_password" {
+  description = "Password for wg-easy web UI"
+  type        = string
+  default     = "changeme123"
+  sensitive   = true
+}
+

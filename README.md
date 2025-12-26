@@ -1,331 +1,367 @@
-# WireGuard VPN Server on Yandex Cloud
+# WireGuard VPN сервер в Yandex Cloud
 
-This Terraform project provisions a production-ready WireGuard VPN server in Yandex Cloud using wg-easy and Docker Compose.
+Этот Terraform проект разворачивает готовый к продакшену WireGuard VPN сервер в Yandex Cloud с использованием wg-easy и Docker Compose.
 
-## Features
+## Возможности
 
-- **WireGuard VPN Server** via wg-easy with web UI
-- **Automatic Setup** using cloud-init
-- **Secure Configuration** with security groups
-- **Public IP** for VPN access
-- **Web UI** for easy client configuration and QR code generation
+- **WireGuard VPN сервер** через wg-easy с веб-интерфейсом
+- **Автоматическая настройка** с помощью cloud-init
+- **Безопасная конфигурация** с группами безопасности
+- **Публичный IP** для доступа к VPN
+- **Веб-интерфейс** для простого создания конфигураций клиентов и QR-кодов
 
-## Prerequisites
+## ✅ Что уже готово
 
-1. **Terraform** >= 1.0
+Проект полностью настроен и готов к использованию:
+
+- ✅ Все Terraform файлы созданы и настроены
+- ✅ Провайдер Yandex Cloud настроен
+- ✅ Конфигурация сети (VPC, подсеть)
+- ✅ Конфигурация виртуальной машины с security groups
+- ✅ Cloud-init скрипт для автоматической установки Docker и wg-easy
+- ✅ Скрипт `setup-tfvars.sh` для автоматического создания `terraform.tfvars`
+- ✅ Переменные окружения YC_TOKEN, YC_CLOUD_ID, YC_FOLDER_ID настроены
+
+## Требования
+
+1. **Terraform** >= 0.13
    ```bash
-   # Install Terraform (macOS)
+   # Установка Terraform (macOS)
    brew install terraform
    
-   # Or download from https://www.terraform.io/downloads
+   # Или скачайте с https://www.terraform.io/downloads
    ```
 
 2. **Yandex Cloud CLI (yc)**
    ```bash
-   # Install yc CLI (macOS)
+   # Установка yc CLI (macOS)
    curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash
    
-   # Or follow: https://cloud.yandex.ru/docs/cli/quickstart
+   # Или следуйте инструкциям: https://cloud.yandex.ru/docs/cli/quickstart
    ```
 
-3. **Yandex Cloud Account** with:
-   - Active cloud
-   - Folder created
-   - Service account with compute admin permissions (or use your user account)
+3. **Аккаунт Yandex Cloud** с:
+   - Активным облаком
+   - Созданной папкой (folder)
+   - Сервисным аккаунтом с правами администратора compute (или используйте свой пользовательский аккаунт)
 
-## Getting Started
+## Быстрый старт
 
-### 1. Authenticate with Yandex Cloud
+### 1. Аутентификация в Yandex Cloud
 
 ```bash
-# Initialize yc CLI
+# Инициализация yc CLI
 yc init
 
-# Or authenticate with OAuth token
-yc config set token <your-token>
+# Или аутентификация с OAuth токеном
+yc config set token <ваш-токен>
 ```
 
-### 2. Get Cloud ID and Folder ID
+**✅ Готово**: Вы уже настроили переменные окружения:
+```bash
+export YC_TOKEN=$(yc iam create-token)
+export YC_CLOUD_ID=$(yc config get cloud-id)
+export YC_FOLDER_ID=$(yc config get folder-id)
+```
+
+### 2. Получение Cloud ID и Folder ID
+
+Если переменные окружения уже установлены, можно пропустить этот шаг.
 
 ```bash
-# List clouds
+# Список облаков
 yc resource-manager cloud list
 
-# List folders in a cloud
+# Список папок в облаке
 yc resource-manager folder list --cloud-id <cloud-id>
 ```
 
-Alternatively, you can find these in the Yandex Cloud Console:
-- **Cloud ID**: Cloud settings → Overview
-- **Folder ID**: Folder settings → Overview
+Альтернативно, вы можете найти эти значения в консоли Yandex Cloud:
+- **Cloud ID**: Настройки облака → Обзор
+- **Folder ID**: Настройки папки → Обзор
 
-### 3. Get Your Public IP
+### 3. Получение вашего публичного IP
 
 ```bash
-# Get your current public IP
+# Получить текущий публичный IP
 curl -4 ifconfig.me
 
-# Or use any online service like https://ifconfig.me
+# Или используйте любой онлайн-сервис, например https://ifconfig.me
 ```
 
-### 4. Configure Terraform Variables
+### 4. Настройка переменных Terraform
+
+**Автоматический способ** (рекомендуется):
 
 ```bash
-# Copy the example file
+# В терминале, где установлены переменные YC_CLOUD_ID и YC_FOLDER_ID
+./setup-tfvars.sh
+```
+
+Скрипт автоматически:
+- Использует `YC_CLOUD_ID` и `YC_FOLDER_ID` из переменных окружения
+- Получает ваш текущий IP адрес
+- Создает файл `terraform.tfvars` с правильными значениями
+
+**Ручной способ**:
+
+```bash
+# Копируем пример файла
 cp terraform.tfvars.example terraform.tfvars
 
-# Edit terraform.tfvars with your values
+# Редактируем terraform.tfvars со своими значениями
 nano terraform.tfvars
 ```
 
-Fill in the required variables:
+Заполните необходимые переменные:
 ```hcl
 cloud_id  = "b1gxxxxxxxxxxxxx"
 folder_id = "b1gxxxxxxxxxxxxx"
-my_ip     = "1.2.3.4/32"  # Your public IP in CIDR notation
+my_ip     = "1.2.3.4/32"  # Ваш публичный IP в CIDR нотации
 ```
 
-**Note**: Use `/32` for a single IP address (e.g., `1.2.3.4/32`).
+**Примечание**: Используйте `/32` для одного IP адреса (например, `1.2.3.4/32`).
 
-### 5. Initialize Terraform
+### 5. Инициализация Terraform
 
 ```bash
 terraform init
 ```
 
-This will download the Yandex Cloud provider.
+Это загрузит провайдер Yandex Cloud.
 
-### 6. Review the Plan
+### 6. Просмотр плана
 
 ```bash
 terraform plan
 ```
 
-Review what will be created:
-- VPC network and subnet
-- Security group
-- Compute instance (2 vCPU, 2 GB RAM, Ubuntu 22.04)
+Проверьте, что будет создано:
+- VPC сеть и подсеть
+- Группа безопасности
+- Вычислительный инстанс (2 vCPU, 2 GB RAM, Ubuntu 22.04)
 
-### 7. Apply the Configuration
+### 7. Применение конфигурации
 
 ```bash
 terraform apply
 ```
 
-Type `yes` when prompted. The deployment takes approximately 2-3 minutes.
+Введите `yes` при запросе. Развертывание займет примерно 2-3 минуты.
 
-### 8. Get Outputs
+### 8. Получение выходных данных
 
-After `terraform apply` completes, you'll see:
+После завершения `terraform apply` вы увидите:
 
 ```bash
 terraform output
 ```
 
-You'll receive:
-- `vpn_ip`: Public IP address of the VPN server
-- `vpn_ui_url`: Web UI URL for managing WireGuard clients
-- `ssh_command`: Command to SSH into the VM
+Вы получите:
+- `vpn_ip`: Публичный IP адрес VPN сервера
+- `vpn_ui_url`: URL веб-интерфейса для управления клиентами WireGuard
+- `ssh_command`: Команда для SSH подключения к VM
 
-Example output:
+Пример вывода:
 ```
 vpn_ip = "51.250.XX.XX"
 vpn_ui_url = "http://51.250.XX.XX:51821"
 ssh_command = "ssh ubuntu@51.250.XX.XX"
 ```
 
-## Using the VPN
+## Использование VPN
 
-### 1. Access the Web UI
+### 1. Доступ к веб-интерфейсу
 
-Open the `vpn_ui_url` in your browser (e.g., `http://51.250.XX.XX:51821`).
+Откройте `vpn_ui_url` в браузере (например, `http://51.250.XX.XX:51821`).
 
-**Default password**: `changeme123`
+**Пароль по умолчанию**: `changeme123`
 
-**⚠️ Security Note**: Change the password by editing `/opt/wireguard/docker-compose.yml` on the VM and restarting the container.
+**⚠️ Важно для безопасности**: Измените пароль, отредактировав `/opt/wireguard/docker-compose.yml` на VM и перезапустив контейнер.
 
-### 2. Create a Client Configuration
+### 2. Создание конфигурации клиента
 
-1. Click **"New Client"** in the web UI
-2. Enter a name for your device
-3. Click **"Create"**
-4. Download the configuration file or scan the QR code
+1. Нажмите **"New Client"** в веб-интерфейсе
+2. Введите имя для вашего устройства
+3. Нажмите **"Create"**
+4. Скачайте файл конфигурации или отсканируйте QR-код
 
-### 3. Connect to VPN
+### 3. Подключение к VPN
 
 #### macOS/iOS
-- Import the `.conf` file into the WireGuard app
-- Or scan the QR code with the WireGuard app
-- Toggle the connection on
+- Импортируйте файл `.conf` в приложение WireGuard
+- Или отсканируйте QR-код приложением WireGuard
+- Включите подключение
 
 #### Linux
 ```bash
-# Install WireGuard
+# Установка WireGuard
 sudo apt install wireguard
 
-# Copy config to WireGuard directory
+# Копирование конфигурации в директорию WireGuard
 sudo cp client.conf /etc/wireguard/wg0.conf
 
-# Start VPN
+# Запуск VPN
 sudo wg-quick up wg0
 
-# Stop VPN
+# Остановка VPN
 sudo wg-quick down wg0
 ```
 
 #### Windows
-- Download WireGuard for Windows
-- Import the `.conf` file
-- Click "Activate"
+- Скачайте WireGuard для Windows
+- Импортируйте файл `.conf`
+- Нажмите "Activate"
 
-### 4. Verify Your Connection
+### 4. Проверка подключения
 
 ```bash
-# Check your public IP (should show VPN server IP)
+# Проверьте ваш публичный IP (должен показывать IP VPN сервера)
 curl -4 ifconfig.me
 
-# Or visit https://ifconfig.me
+# Или посетите https://ifconfig.me
 ```
 
-## Project Structure
+## Структура проекта
 
 ```
 .
-├── providers.tf              # Terraform provider configuration
-├── variables.tf              # Variable definitions
-├── terraform.tfvars.example  # Example variables file
-├── network.tf                # VPC network and subnet
-├── vm.tf                     # Compute instance and security group
-├── cloud-init.yaml           # Cloud-init script for VM bootstrap
-├── outputs.tf                # Terraform outputs
-└── README.md                 # This file
+├── providers.tf              # Конфигурация провайдера Terraform
+├── variables.tf              # Определения переменных
+├── terraform.tfvars.example  # Пример файла переменных
+├── network.tf                # VPC сеть и подсеть
+├── vm.tf                     # Вычислительный инстанс и группа безопасности
+├── cloud-init.yaml           # Cloud-init скрипт для начальной настройки VM
+├── outputs.tf                # Выходные данные Terraform
+├── setup-tfvars.sh           # Скрипт для автоматического создания terraform.tfvars
+├── .gitignore                # Игнорируемые файлы Git
+└── README.md                 # Этот файл
 ```
 
-## Configuration Details
+## Детали конфигурации
 
-### Security Group Rules
+### Правила группы безопасности
 
-- **UDP 51820**: Open to `0.0.0.0/0` (WireGuard VPN)
-- **TCP 22**: Open only to `my_ip` (SSH)
-- **TCP 51821**: Open only to `my_ip` (Web UI)
-- **All egress**: Allowed
+- **UDP 51820**: Открыт для `0.0.0.0/0` (WireGuard VPN)
+- **TCP 22**: Открыт только для `my_ip` (SSH)
+- **TCP 51821**: Открыт только для `my_ip` (Веб-интерфейс)
+- **Весь исходящий трафик**: Разрешен
 
-### VM Specifications
+### Характеристики VM
 
-- **Image**: Ubuntu 22.04 LTS
-- **vCPU**: 2 cores
+- **Образ**: Ubuntu 22.04 LTS
+- **vCPU**: 2 ядра
 - **RAM**: 2 GB
-- **Disk**: 20 GB
-- **Zone**: ru-central1-a
+- **Диск**: 20 GB
+- **Зона**: ru-central1-a
 
-### wg-easy Configuration
+### Конфигурация wg-easy
 
-- **WG_HOST**: Dynamically set to VM public IP
-- **WG_ALLOWED_IPS**: `0.0.0.0/0` (route all traffic through VPN)
+- **WG_HOST**: Динамически устанавливается в публичный IP VM
+- **WG_ALLOWED_IPS**: `0.0.0.0/0` (маршрутизировать весь трафик через VPN)
 - **WG_PORT**: 51820 (UDP)
-- **Web UI Port**: 51821 (TCP)
-- **Data Persistence**: `/opt/wireguard/wg-data`
+- **Порт веб-интерфейса**: 51821 (TCP)
+- **Хранение данных**: `/opt/wireguard/wg-data`
 
-## Troubleshooting
+## Решение проблем
 
-### Cannot Access Web UI
+### Не могу получить доступ к веб-интерфейсу
 
-1. Verify your IP is correct in `terraform.tfvars`:
+1. Проверьте, что ваш IP правильный в `terraform.tfvars`:
    ```bash
    curl -4 ifconfig.me
    ```
 
-2. Check security group rules:
+2. Проверьте правила группы безопасности:
    ```bash
    terraform show | grep -A 10 security_group
    ```
 
-3. SSH into the VM and check Docker:
+3. Подключитесь по SSH к VM и проверьте Docker:
    ```bash
    ssh ubuntu@<vpn_ip>
    docker ps
    docker logs wg-easy
    ```
 
-### VPN Not Connecting
+### VPN не подключается
 
-1. Check WireGuard is running:
+1. Проверьте, что WireGuard запущен:
    ```bash
    ssh ubuntu@<vpn_ip>
    docker ps | grep wg-easy
    ```
 
-2. Verify firewall rules:
+2. Проверьте правила файрвола:
    ```bash
    sudo iptables -L -n
    ```
 
-3. Check WireGuard logs:
+3. Проверьте логи WireGuard:
    ```bash
    docker logs wg-easy
    ```
 
-### Change Web UI Password
+### Изменение пароля веб-интерфейса
 
-1. SSH into the VM:
+1. Подключитесь по SSH к VM:
    ```bash
    ssh ubuntu@<vpn_ip>
    ```
 
-2. Edit docker-compose.yml:
+2. Отредактируйте docker-compose.yml:
    ```bash
    sudo nano /opt/wireguard/docker-compose.yml
-   # Change PASSWORD=changeme123 to your password
+   # Измените PASSWORD=changeme123 на ваш пароль
    ```
 
-3. Restart the container:
+3. Перезапустите контейнер:
    ```bash
    cd /opt/wireguard
    sudo docker compose down
    sudo docker compose up -d
    ```
 
-## Cleanup
+## Очистка
 
-To destroy all resources:
+Для удаления всех ресурсов:
 
 ```bash
 terraform destroy
 ```
 
-Type `yes` when prompted. This will delete:
-- The compute instance
-- Security group
-- Subnet
-- VPC network
+Введите `yes` при запросе. Это удалит:
+- Вычислительный инстанс
+- Группу безопасности
+- Подсеть
+- VPC сеть
 
-**⚠️ Warning**: This will permanently delete your VPN server and all client configurations.
+**⚠️ Предупреждение**: Это навсегда удалит ваш VPN сервер и все конфигурации клиентов.
 
-## Cost Estimation
+## Оценка стоимости
 
-Approximate monthly cost in Yandex Cloud:
-- **VM (2 vCPU, 2 GB RAM)**: ~$15-20/month
-- **Public IP**: Usually included
-- **Traffic**: Depends on usage
+Примерная месячная стоимость в Yandex Cloud:
+- **VM (2 vCPU, 2 GB RAM)**: ~$15-20/месяц
+- **Публичный IP**: Обычно включен
+- **Трафик**: Зависит от использования
 
-Check current pricing: https://cloud.yandex.ru/docs/compute/pricing
+Проверьте актуальные цены: https://cloud.yandex.ru/docs/compute/pricing
 
-## Security Recommendations
+## Рекомендации по безопасности
 
-1. **Change Default Password**: Update the wg-easy password immediately
-2. **Use SSH Keys**: Configure SSH key authentication instead of passwords
-3. **Restrict Web UI Access**: Keep `my_ip` updated if your IP changes
-4. **Regular Updates**: Keep the VM and Docker images updated
-5. **Monitor Usage**: Check Yandex Cloud billing regularly
+1. **Измените пароль по умолчанию**: Обновите пароль wg-easy немедленно
+2. **Используйте SSH ключи**: Настройте аутентификацию по SSH ключам вместо паролей
+3. **Ограничьте доступ к веб-интерфейсу**: Обновляйте `my_ip`, если ваш IP изменился
+4. **Регулярные обновления**: Поддерживайте VM и Docker образы в актуальном состоянии
+5. **Мониторинг использования**: Регулярно проверяйте биллинг Yandex Cloud
 
-## Support
+## Поддержка
 
-For issues with:
-- **Terraform**: Check [Terraform Yandex Provider Docs](https://registry.terraform.io/providers/yandex-cloud/yandex/latest/docs)
-- **wg-easy**: Check [wg-easy GitHub](https://github.com/wg-easy/wg-easy)
-- **WireGuard**: Check [WireGuard Documentation](https://www.wireguard.com/)
+При проблемах с:
+- **Terraform**: См. [Документацию Terraform Yandex Provider](https://registry.terraform.io/providers/yandex-cloud/yandex/latest/docs)
+- **wg-easy**: См. [wg-easy GitHub](https://github.com/wg-easy/wg-easy)
+- **WireGuard**: См. [Документацию WireGuard](https://www.wireguard.com/)
 
-## License
+## Лицензия
 
-This project is provided as-is for personal use.
-
+Этот проект предоставляется как есть для личного использования.

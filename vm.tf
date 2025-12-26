@@ -63,7 +63,9 @@ resource "yandex_compute_instance" "wireguard_vm" {
   }
 
   metadata = {
-    user-data = file("${path.module}/cloud-init.yaml")
+    user-data = templatefile("${path.module}/cloud-init.yaml", {
+      wg_easy_password = var.wg_easy_password
+    })
   }
 
   scheduling_policy {
