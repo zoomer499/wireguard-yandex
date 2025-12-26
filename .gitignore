@@ -3,6 +3,7 @@
 .terraform.lock.hcl
 terraform.tfstate
 terraform.tfstate.backup
+terraform.tfstate.*
 *.tfvars
 !terraform.tfvars.example
 
@@ -23,4 +24,21 @@ override.tf.json
 # Ignore CLI configuration files
 .terraformrc
 terraform.rc
+
+# Sensitive data files (optional - можно оставить setup-tfvars.sh, он не содержит секретов)
+# setup-tfvars.sh
+*.pem
+*.key
+*.crt
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 

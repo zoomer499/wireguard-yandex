@@ -609,6 +609,76 @@ terraform apply
 - **wg-easy**: См. [wg-easy GitHub](https://github.com/wg-easy/wg-easy)
 - **WireGuard**: См. [Документацию WireGuard](https://www.wireguard.com/)
 
+## Публикация в GitHub
+
+Проект готов к публикации в GitHub. Все секретные файлы уже добавлены в `.gitignore`:
+
+### Что НЕ будет опубликовано (в .gitignore):
+- ✅ `terraform.tfvars` - содержит cloud_id, folder_id, пароли
+- ✅ `terraform.tfstate*` - содержит состояние инфраструктуры
+- ✅ `.terraform/` - кэш провайдеров
+- ✅ `setup-tfvars.sh` - опционально (можно оставить, он не содержит секретов)
+
+### Что БУДЕТ опубликовано:
+- ✅ Все `.tf` файлы (конфигурация Terraform)
+- ✅ `terraform.tfvars.example` - пример без секретов
+- ✅ `cloud-init.yaml` - скрипт настройки VM
+- ✅ `README.md` - документация
+- ✅ `.gitignore` - правила игнорирования
+
+### Как опубликовать:
+
+```bash
+# 1. Проверьте, что секретные файлы не будут закоммичены
+git status
+# terraform.tfvars и terraform.tfstate не должны отображаться
+
+# 2. Инициализируйте git репозиторий (если еще не сделано)
+git init
+
+# 3. Добавьте все файлы
+git add .
+
+# 4. Проверьте, что terraform.tfvars НЕ в списке
+git status
+
+# 5. Создайте первый коммит
+git commit -m "Initial commit: WireGuard VPN server for Yandex Cloud"
+
+# 6. Создайте репозиторий на GitHub и добавьте remote
+git remote add origin https://github.com/ваш-username/wireguard-yandex.git
+
+# 7. Отправьте код
+git push -u origin main
+```
+
+### Для других пользователей:
+
+После клонирования репозитория:
+
+```bash
+git clone https://github.com/ваш-username/wireguard-yandex.git
+cd wireguard-yandex
+
+# Создайте terraform.tfvars из примера
+cp terraform.tfvars.example terraform.tfvars
+
+# Заполните своими значениями
+nano terraform.tfvars
+
+# Или используйте скрипт
+./setup-tfvars.sh
+```
+
+### ⚠️ Важно перед публикацией:
+
+1. **Проверьте `.gitignore`** - убедитесь, что все секретные файлы там
+2. **Проверьте `git status`** - не должно быть `terraform.tfvars` или `terraform.tfstate`
+3. **Проверьте коммиты** - используйте `git log` чтобы убедиться, что секреты не попали в историю
+4. **Если секреты уже в истории** - используйте `git filter-branch` или `BFG Repo-Cleaner` для очистки
+
 ## Лицензия
 
 Этот проект предоставляется как есть для личного использования.
+
+MIT License - используйте свободно для личных и коммерческих проектов.
