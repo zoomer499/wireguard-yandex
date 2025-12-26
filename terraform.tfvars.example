@@ -1,0 +1,10 @@
+cloud_id  = "your-cloud-id-here"
+folder_id = "your-folder-id-here"
+my_ip     = "1.2.3.4/32"
+
+# Optional: Override defaults if needed
+# vm_name      = "wireguard-vpn"
+# vm_cores     = 2
+# vm_memory    = 2
+# vm_disk_size = 20
+
