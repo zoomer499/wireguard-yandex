@@ -63,3 +63,4 @@ git filter-branch --force --index-filter \
 - ❌ `terraform.tfstate*` (содержит состояние инфраструктуры)
 - ❌ `.terraform/` (кэш провайдеров)
 
+
